@@ -1,0 +1,67 @@
+U ovom primjeru koristi se jedan spremnik Rabbitmq za razmjenu poruka te (bar) dva druga koja izvode jednostavne programe u Pythonu.
+Svi se spremnici ručno pokreću navedenim naredbama.
+
+RabbitMQ
+---------
+Pogledati upute na: https://www.rabbitmq.com/tutorials
+
+Spremnik za rabbitmq već postoji (docker se automatski spaja na Docker Hub koji ima puno već pripremljenih spremnika) i lako se dohvaća i pokreće sa:
+$ docker run -it --rm --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3.13-management
+
+Argumenti i zastavice:
+-it: -t stvori terminal (piši u trenutnu terminal); -i ostavi STDIN otvoren (čitaj iz njega)
+--rm - obriše instancu spremnika kad ona završi s radom (ne briše sliku spremnik s diska!)
+--name rabbitmq - ime koje će instanca spremnika imati kad se pokrene
+-p 5672:5672 - mapiranje portova (host:container)
+rabbitmq:3.13-management - ime slike:inačica
+
+Ostaviti ga neka radi u zasebnom terminalu.
+
+
+Python programi
+----------------
+Spremnik za Python već postoji. Međutim, za rad s RabbitMQ potrebna je
+biblioteka pika, pa postojeći spremnik treba nadograditi.
+Upute kako napraviti tu sliku ovdje su prikazani kroz datoteku Dockerfile.
+
+Dockerfile
+-----------------------------------------------------------------
+# syntax=docker/dockerfile:1
+
+FROM python                                 #koji spremnik je početni/predložak
+RUN python3 -m pip install pika --upgrade   #u tom spremniku pokreni naredbu koja ga ažurira
+
+CMD ["readme.py"]                           #ako se pri pokretanju ne daje argumen ovo koristi
+ENTRYPOINT ["python3"]                      #pri pokretanju spremnika pokreni ovaj program
+                                            #uz ostale argumente navedene na kraju
+-----------------------------------------------------------------
+
+Korištenjem naveden datoteke, spremnik za python se izrađuje sa naredbom
+pokrenutom iz trenutna direktorija (gdje je Dockerfile):
+$ docker build -t python-client .
+
+
+Pokretanje programa u spremniku
+---------------------------------
+$ docker run --net="host" --name c1 --rm -v $(pwd):/app -w /app -i -t python-client send.py
+
+--net="host" - spremnik ima pristup mreži (portovima) računala domaćina
+  (potrebno da se može spojiti s rabitmq)
+--name c1 je ime kontejnera (kad se pokrene): promijeni ga (npr. c1, c2, c3...)
+-v $(pwd):/app - trenutni direktorij se mapira u /app u kontejneru
+-w /app - početni direktorij u kojem se program pokreće
+python-client - ime spremnika iz kojeg se radi instanca i pokreće (stvorena s "build")
+- send.py - argument koji se predaje programu
+
+Uz zadane postavke, trenutni direktorij s datotekama Dockerfile, readme.py,
+receive.py, send.py i upute.txt se mapira u /app u spremniku,
+pokreće se spremnik, za trenutni diretkorij postavlja /app te
+u njemu pokreće naredba:
+
+python3 send.py
+
+- python3 je zadan u Dockerfile
+- send.py je argument pri pokretanju; da nije, koristio bi se readme.py zadan u Dockerfile-u.
+
+Više o korištenju RabbitMQ poslužitelja iz programa pronaći na:
+https://www.rabbitmq.com/tutorials
