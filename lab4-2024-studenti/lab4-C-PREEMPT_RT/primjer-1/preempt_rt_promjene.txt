@@ -1,0 +1,112 @@
+
+=============================================================================================================================
+1. Mapiranje spinlocka na rt_mutex
+=============================================================================================================================
+U datoteci include/linux/spinlock.h i include/linux/spinlock_rt.h
+
+Spinlock je mapiran na rt_mutex umjesto na raw_spinlock.
+RT_mutex je monitor koji koristi protokol nasljeđivanja prioriteta.
+Npr. u izvornom kodu linuxa umjesto da se koristi raw_spin_lock(), kao što se koristi u kernelu bez PREEMPT_RT:
+
+static __always_inline void spin_lock(spinlock_t *lock)
+{
+	raw_spin_lock(&lock->rlock);
+}
+
+Za kernel s PREEMPT_RT koristi se rt_spin_lock():
+
+static __always_inline void spin_lock(spinlock_t *lock)
+{
+	rt_spin_lock(lock);
+}
+
+Struktura koja se koristi za rt_mutex je:
+
+struct rt_mutex_base {
+	raw_spinlock_t		wait_lock;
+	struct rb_root_cached   waiters;
+	struct task_struct	*owner;
+};
+
+wait_lock je zapravo raw_spinlock koji se koristi
+waiters je crveno-crno stablo zadataka koji čekaju da se rt_mutex otključa
+owner je zadataka koji trenutačno ima rt_mutex (odnosno koji ga je zaključao)
+
+Ako zadatak dođe na rt_mutex i vidi da ga je netko drugi zaključao, stavit će se u crveno-crno stablo waiters
+i može se prekinuti njegovo izvođenje (preempt).
+Ako rt_mutex nije zaključan, zaključa wait_lock i pokazivač na njega se stavi u owner i nsatavi dalje s izvođenjem.
+
+=============================================================================================================================
+2. Obrada prekida kao dretve (threadirqs)
+=============================================================================================================================
+Opcija threadirqs omogućuje da se prekidi obrađuju kao dretve umjesto kao prekidne rutine.
+Dretve imaju način raspoređivanja SCHED_FIFO i prioritet im se postavlja na 50.
+
+Primjer odabira između obrade kao dretve ili rutine (iz include/linux/interrupt.h):
+
+	if (force_irqthreads())
+		raise_ktimers_thread(nr);
+	else
+		__raise_softirq_irqoff(nr);
+
+U datoteci include/linux/interrupt.h force_irqthreads() makro je postavljen na true ako je definiran CONFIG_PREEMPT_RT:
+
+#ifdef CONFIG_IRQ_FORCED_THREADING
+# ifdef CONFIG_PREEMPT_RT
+#  define force_irqthreads()	(true)
+# else
+DECLARE_STATIC_KEY_FALSE(force_irqthreads_key);
+#  define force_irqthreads()	(static_branch_unlikely(&force_irqthreads_key))
+# endif
+#else
+#define force_irqthreads()	(false)
+#endif
+
+Ako je obrada prekida dretva, onda ju možemo prekinuti i obraditi neki zadatak koji je većeg prioriteta, 
+što je dobro za RT sustave da ne dođe do toga da zbog prekida ne stignemo obraditi zadatak na vrijeme.
+
+=============================================================================================================================
+3. Korištenje softwearskog prekida umjesto hardwearskog za hrtimer
+=============================================================================================================================
+Ako nije specifično navedeno da se koristi hardwearski prekid, koristi se softwearski prekid zbog latencije.
+
+U datoteci kernel/time/hrtimer.c:
+
+	/*
+	 * On PREEMPT_RT enabled kernels hrtimers which are not explicitly
+	 * marked for hard interrupt expiry mode are moved into soft
+	 * interrupt context for latency reasons and because the callbacks
+	 * can invoke functions which might sleep on RT, e.g. spin_lock().
+	 */
+	if (IS_ENABLED(CONFIG_PREEMPT_RT) && !(mode & HRTIMER_MODE_HARD))
+		softtimer = true;
+
+=============================================================================================================================
+4. Omogućiti prekid izvršavanja za RCU
+=============================================================================================================================
+Ne dolazi do onemogućenja prekida izvršavanja pa može doći do zamjene zadatka i 
+može se izvršavati neki zadatak većeg prioriteta.
+
+U datoteci include/linux/rcupdate.h:
+
+#define rcu_softirq_qs_periodic(old_ts) \
+do { \
+	if (!IS_ENABLED(CONFIG_PREEMPT_RT) && \
+	    time_after(jiffies, (old_ts) + HZ / 10)) { \
+		preempt_disable(); \
+		rcu_softirq_qs(); \
+		preempt_enable(); \
+		(old_ts) = jiffies; \
+	} \
+} while (0)
+
+Ako CONFIG_PREEMPT_RT nije definiran, onda onemogući prekid (preempt), a ako nije onda se 
+nikad ne izvrši ništa u tom makrou.
+
+=============================================================================================================================
+
+izvori:
+elixir.bootlin.com
+https://wiki.linuxfoundation.org/realtime/documentation/technical_details/start
+https://wiki.linuxfoundation.org/realtime/documentation/technical_details/threadirq
+https://wiki.linuxfoundation.org/realtime/documentation/technical_details/hr_timers

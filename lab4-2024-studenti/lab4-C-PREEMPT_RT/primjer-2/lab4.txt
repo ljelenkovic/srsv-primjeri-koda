@@ -1,0 +1,233 @@
+Preuzeta jezgra 6.12.8. kao u uputama.
+
+Izvođenjem naredbe uname -a dobiva se ispis:
+Linux vinko 6.12.8 #1 SMP PREEMPT_RT Tue Jan 21 19:18:08 CET 2025 x86_64 x86_64 x86_64 GNU/Linux
+
+Kako bi se vidjelo gdje je sve uključen ovaj patch, u terminalu se u direktoriju u kojem se nalazi izvorni kod može izvesti naredba grep -r 'CONFIG_PREEMPT_RT'. U dobivenom ispisu mogu se vidjeti sve datoteke u izvornom kodu jezgre koje sadrže zastavicu 'CONFIG_PREEMPT_RT'. Ipak, za istraživanje promjena korišten je elixir.bootlin.com U nastavku su opisane neke od uočenih promjena.
+
+/*******************************************************************************************************************************************************************************************************/
+
+1. Istiskivajuć monitor (rt_mutex)
+
+Sljedeći kod je iz zaglavlja /include/linux/mutex.h te prikazuje makro koji definira kreiranje monitora. Ako je u jezgri uključen dodatak PREEMPT_RT, tada će inicijalizacija monitora biti drugačija od uobičajene. Razlika je u tome što će se koristiti tzv. rt_mutex umjesto običnog mutexa. Njegova najznačajnija karakteristika je što implementira protokol nasljeđivanja prioriteta čime se ublažava problem inverzije prioriteta.
+
+#ifndef CONFIG_PREEMPT_RT
+#define __MUTEX_INITIALIZER(lockname) \
+		{ .owner = ATOMIC_LONG_INIT(0) \
+		, .wait_lock = __RAW_SPIN_LOCK_UNLOCKED(lockname.wait_lock) \
+		, .wait_list = LIST_HEAD_INIT(lockname.wait_list) \
+		__DEBUG_MUTEX_INITIALIZER(lockname) \
+		__DEP_MAP_MUTEX_INITIALIZER(lockname) }
+
+#define DEFINE_MUTEX(mutexname) \
+	struct mutex mutexname = __MUTEX_INITIALIZER(mutexname)
+
+extern void __mutex_init(struct mutex *lock, const char *name,
+			 struct lock_class_key *key);
+
+/**
+ * mutex_is_locked - is the mutex locked
+ * @lock: the mutex to be queried
+ *
+ * Returns true if the mutex is locked, false if unlocked.
+ */
+extern bool mutex_is_locked(struct mutex *lock);
+
+#else /* !CONFIG_PREEMPT_RT */
+/*
+ * Preempt-RT variant based on rtmutexes.
+ */
+
+#define __MUTEX_INITIALIZER(mutexname)					\
+{									\
+	.rtmutex = __RT_MUTEX_BASE_INITIALIZER(mutexname.rtmutex)	\
+	__DEP_MAP_MUTEX_INITIALIZER(mutexname)				\
+}
+
+#define DEFINE_MUTEX(mutexname)						\
+	struct mutex mutexname = __MUTEX_INITIALIZER(mutexname)
+
+extern void __mutex_rt_init(struct mutex *lock, const char *name,
+			    struct lock_class_key *key);
+
+#define mutex_is_locked(l)	rt_mutex_base_is_locked(&(l)->rtmutex)
+
+#define __mutex_init(mutex, name, key)			\
+do {							\
+	rt_mutex_base_init(&(mutex)->rtmutex);		\
+	__mutex_rt_init((mutex), name, key);		\
+} while (0)
+
+#endif /* CONFIG_PREEMPT_RT */
+
+/*******************************************************************************************************************************************************************************************************/
+
+2. Dretveni prekidi (Threaded interrupts)
+
+Sljedeći programski odsječci su iz /include/linux/interrupt.h i /kernel/irq_work.c. Karakteristika dodatka PREEMPT_RT je da se gotovi svi prekidi (osim nekolicine s jasno definiranim očekivanim trajanjem) tretiraju kao "dretveni prekidi". Karakteristika tog mehanizma je ta da se prekid izvodi vrlo kratko. Ako se ne radi o jednom od ranije spomenutih prekida koji se izvode u cijelosti, tada se za obradu prekida kreira nova jezgrena dretva koja će odmah ili nešto kasnije odraditi prekid. Na ovaj način je omogućeno istiskivanje prekida nekim od prioritetnijih zadataka koji nisu nužno prekidi, odnosno omogućava se potpuno istiskivanje.
+
+#ifdef CONFIG_IRQ_FORCED_THREADING
+# ifdef CONFIG_PREEMPT_RT
+#  define force_irqthreads()	(true)
+# else
+DECLARE_STATIC_KEY_FALSE(force_irqthreads_key);
+#  define force_irqthreads()	(static_branch_unlikely(&force_irqthreads_key))
+# endif
+#else
+#define force_irqthreads()	(false)
+#endif
+
+/* Enqueue on current CPU, work must already be claimed and preempt disabled */
+static void __irq_work_queue_local(struct irq_work *work)
+{
+    struct llist_head *list;
+    bool rt_lazy_work = false;
+    bool lazy_work = false;
+    int work_flags;
+
+    work_flags = atomic_read(&work->node.a_flags);
+    if (work_flags & IRQ_WORK_LAZY)
+        lazy_work = true;
+    else if (IS_ENABLED(CONFIG_PREEMPT_RT) &&
+         !(work_flags & IRQ_WORK_HARD_IRQ))
+        rt_lazy_work = true;
+
+    if (lazy_work || rt_lazy_work)
+        list = this_cpu_ptr(&lazy_list);
+    else
+        list = this_cpu_ptr(&raised_list);
+
+    if (!llist_add(&work->node.llist, list))
+        return;
+
+    /* If the work is "lazy", handle it from next tick if any */
+    if (!lazy_work || tick_nohz_tick_stopped())
+        irq_work_raise(work);
+}
+
+/*
+ * On PREEMPT_RT the items which are not marked as
+ * IRQ_WORK_HARD_IRQ are added to the lazy list and a HARD work
+ * item is used on the remote CPU to wake the thread.
+ */
+if (IS_ENABLED(CONFIG_PREEMPT_RT) &&
+    !(atomic_read(&work->node.a_flags) & IRQ_WORK_HARD_IRQ)) {
+
+    if (!llist_add(&work->node.llist, &per_cpu(lazy_list, cpu)))
+        goto out;
+
+    work = &per_cpu(irq_work_wakeup, cpu);
+    if (!irq_work_claim(work))
+        goto out;
+}
+
+/*******************************************************************************************************************************************************************************************************/
+
+3. hrtimer
+
+Sljedeći programski odsječci su iz /include/linux/hrtimer.h i /kernel/time/hrtimer.c. Općenito, hrtimer (alarmi s većom granulacijom) su alarmi koji ostvaruju veću granulaciju sata, a za to koriste sklopovske alarme. Iako su ranije bili karakteristika PREEMPT_RT dodatka, sada su oni dostupni i automatski omogućeni i u novijim jezgrama Linuxa. Odsječci prikazuju jednu karakteristiku koja je dostupna samo s uključenim dodatkom. Prikazana funkcija uobičajeno samo izvodi no-op čime se smanjuje opterećenje procesora. S uključenim PREEMPT_RT, ova funkcija ima drugačiju definiciju. Ta definicija onemogućava inverziju prioriteta u slučaju da više dretvi završava rad s alarmom.
+
+#ifdef CONFIG_PREEMPT_RT
+void hrtimer_cancel_wait_running(const struct hrtimer *timer);
+#else
+static inline void hrtimer_cancel_wait_running(struct hrtimer *timer)
+{
+	cpu_relax();
+}
+#endif
+
+/*
+ * This function is called on PREEMPT_RT kernels when the fast path
+ * deletion of a timer failed because the timer callback function was
+ * running.
+ *
+ * This prevents priority inversion: if the soft irq thread is preempted
+ * in the middle of a timer callback, then calling del_timer_sync() can
+ * lead to two issues:
+ *
+ *  - If the caller is on a remote CPU then it has to spin wait for the timer
+ *    handler to complete. This can result in unbound priority inversion.
+ *
+ *  - If the caller originates from the task which preempted the timer
+ *    handler on the same CPU, then spin waiting for the timer handler to
+ *    complete is never going to end.
+ */
+void hrtimer_cancel_wait_running(const struct hrtimer *timer)
+{
+	/* Lockless read. Prevent the compiler from reloading it below */
+	struct hrtimer_clock_base *base = READ_ONCE(timer->base);
+
+	/*
+	 * Just relax if the timer expires in hard interrupt context or if
+	 * it is currently on the migration base.
+	 */
+	if (!timer->is_soft || is_migration_base(base)) {
+		cpu_relax();
+		return;
+	}
+
+	/*
+	 * Mark the base as contended and grab the expiry lock, which is
+	 * held by the softirq across the timer callback. Drop the lock
+	 * immediately so the softirq can expire the next timer. In theory
+	 * the timer could already be running again, but that's more than
+	 * unlikely and just causes another wait loop.
+	 */
+	atomic_inc(&base->cpu_base->timer_waiters);
+	spin_lock_bh(&base->cpu_base->softirq_expiry_lock);
+	atomic_dec(&base->cpu_base->timer_waiters);
+	spin_unlock_bh(&base->cpu_base->softirq_expiry_lock);
+}
+
+/*******************************************************************************************************************************************************************************************************/
+
+4. RCU
+
+Sljedeći odsječak je iz /kernel/rcu/Kconfig. RCU (Read, Copy, Update) je sinkronizacijski mehanizam međusobnog isključivanja koji se može koristiti umjesto uobičajenih sinkornizacijskih mehanizama kao što je monitor. Ovaj mehanizam je istiskujuć ako je omogućen dodatak PREEMPT_RT što se i vidi iz sljedećeg odsječka (default y if PREEMPT_RT).
+
+config RCU_BOOST
+	bool "Enable RCU priority boosting"
+	depends on (RT_MUTEXES && PREEMPT_RCU && RCU_EXPERT) || PREEMPT_RT
+	default y if PREEMPT_RT
+	help
+	  This option boosts the priority of preempted RCU readers that
+	  block the current preemptible RCU grace period for too long.
+	  This option also prevents heavy loads from blocking RCU
+	  callback invocation.
+
+	  Say Y here if you are working with real-time apps or heavy loads
+	  Say N here if you are unsure.
+	  
+config PREEMPT_RCU
+	bool
+	default y if PREEMPTION
+	select TREE_RCU
+	help
+	  This option selects the RCU implementation that is
+	  designed for very large SMP systems with hundreds or
+	  thousands of CPUs, but for which real-time response
+	  is also required.  It also scales down nicely to
+	  smaller systems.
+
+	  Select this option if you are unsure.
+	  
+/*******************************************************************************************************************************************************************************************************/
+
+5. Ispis na jezgrenu konzolu (printk)
+
+Funkcija printk() (print kernel) koja vrši ispis na jezgrenu konzolu bila je zadnja prepreka potpunoj integraciji PREEMPT_RT dodatka u mainline jezgru. Proučavanjem koda uočio sam sljedeći odsječak koda u zaglavlju /kernel/printk/internal.h.
+
+/*
+ * Identify if legacy printing is forced in a dedicated kthread. If
+ * true, all printing via console lock occurs within a dedicated
+ * legacy printer thread. The only exception is on panic, after the
+ * nbcon consoles have had their chance to print the panic messages
+ * first.
+ */
+#ifdef CONFIG_PREEMPT_RT
+# define force_legacy_kthread()	(true)
+#else
+# define force_legacy_kthread()	(false)
+#endif
+
+Ova promjena vezana je uz callback funkciju write() koja koristi spinlock što nije u skladu sa zahtjevima sustava za rad u stvarnom vremenu. Popravak uključuje između ostalog i prikazani kod. Promjena definira makro force_legacy_kthread() koji od jezgre zahjeva sav ispis preko zasebno kreirane jegrene dretve. Ovom je promjenom ispis na zastarjele konzole za PREEMPT_RT prebačen u posebnu dretvu koja neće predstavljati prekid kako je to prije bilo slučaj.

@@ -1,0 +1,64 @@
+version: "3.8"
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: rabbitmq
+    working_dir: /app
+    volumes:
+      - .:/app  
+    ports:
+      - "5672:5672"  
+      - "15672:15672"  
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s  
+      retries: 5     
+      start_period: 30s  
+      timeout: 5s
+  c1:
+    image: python-client
+    container_name: c1
+    command: healthcheck.py
+    working_dir: /app  
+    volumes:
+      - .:/app 
+    environment:
+      - SERVICE_ID=1
+    restart: always
+    network_mode: "host"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  c2:
+    image: python-client
+    container_name: c2
+    command: service.py
+    working_dir: /app  
+    volumes:
+      - .:/app 
+    environment:
+      - SERVICE_ID=2
+    restart: always
+    network_mode: "host"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  c3:
+    image: python-client
+    container_name: c3
+    command:  service.py
+    working_dir: /app  
+    volumes:
+      - .:/app 
+    environment:
+      - SERVICE_ID=3
+      - FAULTY_SIMULATION=True
+    restart: always
+    network_mode: "host"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+

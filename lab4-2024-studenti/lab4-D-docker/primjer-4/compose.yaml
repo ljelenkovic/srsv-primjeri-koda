@@ -1,0 +1,39 @@
+
+services:
+  rabbitmq:
+   image: rabbitmq:3.13-management
+   container_name: rabbitmq
+   ports:
+     - "5672:5672"
+     - "15672:15672"
+
+  sender:
+    build:               
+      context: .         
+    image: python-client 
+    network_mode: "host" 
+    container_name: sender
+    working_dir: /app     
+    volumes:
+      - .:/app            
+    stdin_open: true      
+    tty: true             
+    command: sender.py
+    restart: unless-stopped
+    depends_on: 
+      - rabbitmq
+
+  receiver:
+    image: python-client  
+    network_mode: "host"  
+    container_name: receiver
+    working_dir: /app    
+    volumes:
+      - .:/app           
+    stdin_open: true     
+    tty: true            
+    command: receiver.py 
+    restart: "no"        
+    depends_on: 
+      - sender
+

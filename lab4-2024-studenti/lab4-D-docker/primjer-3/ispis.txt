@@ -1,0 +1,25 @@
+--- sensor ---
+2025-01-30 14:57:22 INFO:root:Sent: {'deviceId': 'sensor-1', 'temperature': 38.48, 'humidity': 48.78, 'timestamp': '2025-01-30T13:57:22Z'}
+2025-01-30 14:57:27 INFO:root:Sent: {'deviceId': 'sensor-1', 'temperature': 35.79, 'humidity': 55.34, 'timestamp': '2025-01-30T13:57:27Z'}
+2025-01-30 14:57:32 INFO:root:Sent: {'deviceId': 'sensor-1', 'temperature': 22.75, 'humidity': 44.89, 'timestamp': '2025-01-30T13:57:32Z'}
+2025-01-30 14:57:37 INFO:root:Sent: {'deviceId': 'sensor-1', 'temperature': 22.43, 'humidity': 62.88, 'timestamp': '2025-01-30T13:57:37Z'}
+2025-01-30 14:57:42 INFO:root:Sent: {'deviceId': 'sensor-1', 'temperature': 26.31, 'humidity': 58.99, 'timestamp': '2025-01-30T13:57:42Z'}
+2025-01-30 14:57:47 INFO:root:Sent: {'deviceId': 'sensor-1', 'temperature': 22.21, 'humidity': 62.21, 'timestamp': '2025-01-30T13:57:47Z'}
+2025-01-30 14:57:54 INFO:root:Sent: {'deviceId': 'sensor-1', 'temperature': 37.91, 'humidity': 66.4, 'timestamp': '2025-01-30T13:57:54Z'}
+2025-01-30 14:57:59 INFO:root:Sent: {'deviceId': 'sensor-1', 'temperature': 30.69, 'humidity': 51.6, 'timestamp': '2025-01-30T13:57:59Z'}
+2025-01-30 14:58:04 ERROR:root:Sensor failed because of high temperature and humidity! Time: 13:58:04.873103
+2025-01-30 14:58:05 INFO:root:Service started at 13:58:05.694684
+
+--- control ---
+2025-01-30 14:57:22 INFO:root:Control Service is running...
+2025-01-30 14:57:22 INFO:root:Received: {'deviceId': 'sensor-1', 'temperature': 38.48, 'humidity': 48.78, 'timestamp': '2025-01-30T13:57:22Z'}
+2025-01-30 14:57:22 INFO:root:Alert sent: {'message': 'High temperature detected: 38.48°C', 'deviceId': 'sensor-1', 'timestamp': '2025-01-30T13:57:22Z'}
+2025-01-30 14:57:27 INFO:root:Received: {'deviceId': 'sensor-1', 'temperature': 35.79, 'humidity': 55.34, 'timestamp': '2025-01-30T13:57:27Z'}
+2025-01-30 14:57:27 INFO:root:Alert sent: {'message': 'High temperature detected: 35.79°C', 'deviceId': 'sensor-1', 'timestamp': '2025-01-30T13:57:27Z'}
+
+--- alert ---
+2025-01-30 14:57:22 INFO:root:Alert Service is running...
+2025-01-30 14:57:22 INFO:root:ALERT: High temperature detected: 38.48°C (Device: sensor-1, Time: 2025-01-30T13:57:22Z)
+2025-01-30 14:57:27 INFO:root:ALERT: High temperature detected: 35.79°C (Device: sensor-1, Time: 2025-01-30T13:57:27Z)
+2025-01-30 14:57:54 INFO:root:ALERT: High temperature detected: 37.91°C (Device: sensor-1, Time: 2025-01-30T13:57:54Z)
+2025-01-30 14:58:05 INFO:root:ALERT: High temperature detected: 39.55°C (Device: sensor-1, Time: 2025-01-30T13:58:05Z)

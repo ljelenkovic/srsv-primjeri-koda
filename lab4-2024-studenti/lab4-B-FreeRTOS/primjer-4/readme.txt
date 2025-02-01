@@ -1,0 +1,1 @@
+FreeRTOS primjena u projektu.

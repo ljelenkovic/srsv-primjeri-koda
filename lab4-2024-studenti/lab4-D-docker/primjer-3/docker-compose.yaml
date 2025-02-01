@@ -1,0 +1,29 @@
+version: '3.8'
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  sensor-service:
+    build: ./sensor-service
+    depends_on:
+      - rabbitmq
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+
+  control-service:
+    build: ./control-service
+    depends_on:
+      - rabbitmq
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  alert-service:
+    build: ./alert-service
+    depends_on:
+      - rabbitmq
+    environment:
+      - PYTHONUNBUFFERED=1
