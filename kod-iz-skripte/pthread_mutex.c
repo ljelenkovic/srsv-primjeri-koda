@@ -10,20 +10,20 @@
 #define ACT_STOP	1
 #define CALL(ACT,FUNC,...)                                \
 do {                                                      \
-    if ( FUNC ( __VA_ARGS__ ) ) {                         \
-        perror ( #FUNC );                                 \
-        if ( ACT == ACT_STOP )                            \
-            exit (1);                                     \
+    if (FUNC(__VA_ARGS__)) {                              \
+        perror(#FUNC);                                    \
+        if (ACT == ACT_STOP)                              \
+            exit(1);                                      \
     }                                                     \
 } while(0)
 
 /* for example, instead of:
- *    if ( pthread_create ( &t1, NULL, worker, (void *) p ) ) {
- *        perror ( "pthread_create" );
- *        exit ( -1 );
+ *    if (pthread_create(&t1, NULL, worker, (void *) p)) {
+ *        perror("pthread_create");
+ *        exit(-1);
  *    }
  * use:
- *    CALL ( ACT_STOP, pthread_create, &t1, NULL, worker, (void *) 1 );
+ *    CALL(ACT_STOP, pthread_create, &t1, NULL, worker, (void *) 1);
  *
  *--------------------------------------------------------------------------- */
 
@@ -45,50 +45,50 @@ static char *sdir[] = { "south", "north" };
 static int cars_on_bridge = 0;
 static int dir_on_bridge = -1; /* 0: S->N; 1:N->S; -1:bridge empty */
 
-void *car_thread ( void *p )
+void *car_thread(void *p)
 {
 	struct CarInfo *car = p;
 	struct timespec t = { 5, 0 };
 
-	CALL ( ACT_STOP, pthread_mutex_lock, &m );
+	CALL(ACT_STOP, pthread_mutex_lock, &m);
 
-	while ( cars_on_bridge > 2 ||
-            ( dir_on_bridge != -1 && dir_on_bridge != car->dir ) )
-		CALL ( ACT_STOP, pthread_cond_wait, cq[car->dir], &m );
+	while (cars_on_bridge > 2 ||
+           (dir_on_bridge != -1 && dir_on_bridge != car->dir))
+		CALL(ACT_STOP, pthread_cond_wait, cq[car->dir], &m);
 
 	cars_on_bridge++;
 	dir_on_bridge = car->dir;
 
 	printf("Car %2d  on bridge, going %s, on bridge %d car(s) (to %s)\n",
-		car->id, sdir[car->dir], cars_on_bridge, sdir[dir_on_bridge] );
+		car->id, sdir[car->dir], cars_on_bridge, sdir[dir_on_bridge]);
 
-	CALL ( ACT_STOP, pthread_mutex_unlock, &m );
+	CALL(ACT_STOP, pthread_mutex_unlock, &m);
 
-	CALL ( ACT_WARN, nanosleep, &t, NULL );
+	CALL(ACT_WARN, nanosleep, &t, NULL);
 
-	CALL ( ACT_STOP, pthread_mutex_lock, &m );
+	CALL(ACT_STOP, pthread_mutex_lock, &m);
 
 	cars_on_bridge--;
 
-	printf ( "Car %2d off bridge, going %s, on bridge %d car(s) (to %s)\n",
-		car->id, sdir[car->dir], cars_on_bridge, sdir[dir_on_bridge] );
+	printf("Car %2d off bridge, going %s, on bridge %d car(s) (to %s)\n",
+		car->id, sdir[car->dir], cars_on_bridge, sdir[dir_on_bridge]);
 
-	if ( cars_on_bridge > 0 ) {
-		CALL ( ACT_STOP, pthread_cond_signal, cq[car->dir] );
+	if (cars_on_bridge > 0) {
+		CALL(ACT_STOP, pthread_cond_signal, cq[car->dir]);
 	}
 	else {
 		dir_on_bridge = -1;
-		CALL ( ACT_STOP, pthread_cond_broadcast, cq[1 - car->dir] );
+		CALL(ACT_STOP, pthread_cond_broadcast, cq[1 - car->dir]);
 	}
 
-	CALL ( ACT_STOP, pthread_mutex_unlock, &m );
+	CALL(ACT_STOP, pthread_mutex_unlock, &m);
 
-	free (car);
+	free(car);
 
 	return NULL;
 }
 
-int main ()
+int main()
 {
 	pthread_t thr_id;
 	pthread_attr_t attr;
@@ -96,19 +96,19 @@ int main ()
 	struct CarInfo *car;
 	struct timespec t = { 2, 0 };
 
-	CALL ( ACT_STOP, pthread_attr_init, &attr );
-	CALL ( ACT_STOP, pthread_attr_setdetachstate, &attr, PTHREAD_CREATE_DETACHED );
+	CALL(ACT_STOP, pthread_attr_init, &attr);
+	CALL(ACT_STOP, pthread_attr_setdetachstate, &attr, PTHREAD_CREATE_DETACHED);
 
-	for ( i = 0; i < THREADS; i++ ) {
-		car = malloc ( sizeof(struct CarInfo) );
+	for (i = 0; i < THREADS; i++) {
+		car = malloc(sizeof(struct CarInfo));
 		car->id = i+1;
 		car->dir = rand() & 1;
 
-		printf( "New car %d arrived from %s\n", i+1, sdir[1 - car->dir] );
+		printf( "New car %d arrived from %s\n", i+1, sdir[1 - car->dir]);
 
-		CALL ( ACT_STOP, pthread_create, &thr_id, &attr, car_thread, (void *) car );
+		CALL(ACT_STOP, pthread_create, &thr_id, &attr, car_thread, (void *) car);
 
-		CALL ( ACT_WARN, nanosleep, &t, NULL );
+		CALL(ACT_WARN, nanosleep, &t, NULL);
 	}
 
 	return 0;

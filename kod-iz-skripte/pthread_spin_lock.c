@@ -10,20 +10,20 @@
 #define ACT_STOP	1
 #define CALL(ACT,FUNC,...)                                \
 do {                                                      \
-    if ( FUNC ( __VA_ARGS__ ) ) {                         \
-        perror ( #FUNC );                                 \
-        if ( ACT == ACT_STOP )                            \
-            exit (1);                                     \
+    if (FUNC(__VA_ARGS__)) {                              \
+        perror(#FUNC);                                    \
+        if (ACT == ACT_STOP)                              \
+            exit(1);                                      \
     }                                                     \
 } while(0)
 
 /* for example, instead of:
- *    if ( pthread_create ( &t1, NULL, worker, (void *) p ) ) {
- *        perror ( "pthread_create" );
- *        exit ( -1 );
+ *    if (pthread_create(&t1, NULL, worker, (void *) p)) {
+ *        perror("pthread_create");
+ *        exit(-1);
  *    }
  * use:
- *    CALL ( ACT_STOP, pthread_create, &t1, NULL, worker, (void *) 1 );
+ *    CALL(ACT_STOP, pthread_create, &t1, NULL, worker, (void *) 1);
  *
  *--------------------------------------------------------------------------- */
 
@@ -31,49 +31,49 @@ do {                                                      \
 static pthread_spinlock_t lock;
 static int work_in_progress = 1;
 
-static void *worker ( void *p )
+static void *worker(void *p)
 {
 	long id = (long) p;
 	struct timespec t = { id, 0 };
 
-	printf ( "Thread %ld starting\n", id );
+	printf("Thread %ld starting\n", id);
 
-	while ( work_in_progress ) {
-		CALL ( ACT_STOP, pthread_spin_lock, &lock );
+	while (work_in_progress) {
+		CALL(ACT_STOP, pthread_spin_lock, &lock);
 
-		printf ( "Thread %ld inside C.S.\n", id );
+		printf("Thread %ld inside C.S.\n", id);
 
-		CALL ( ACT_WARN, nanosleep, &t, NULL );
+		CALL(ACT_WARN, nanosleep, &t, NULL);
 
 		printf("Thread %ld leaving C.S.\n", id);
 
-		CALL ( ACT_STOP, pthread_spin_unlock, &lock );
+		CALL(ACT_STOP, pthread_spin_unlock, &lock);
 
-		CALL ( ACT_WARN, nanosleep, &t, NULL );
+		CALL(ACT_WARN, nanosleep, &t, NULL);
 	}
 
-	printf ( "Thread %ld exiting\n", id );
+	printf("Thread %ld exiting\n", id);
 
 	return NULL;
 }
 
-int main ()
+int main()
 {
 	long i;
 	pthread_t thr[THREADS];
 	struct timespec t = { 50, 0 };
 
-	CALL ( ACT_STOP, pthread_spin_init, &lock, PTHREAD_PROCESS_PRIVATE );
+	CALL(ACT_STOP, pthread_spin_init, &lock, PTHREAD_PROCESS_PRIVATE);
 
-	for ( i = 0; i < THREADS; i++ )
-		CALL ( ACT_STOP, pthread_create, &thr[i], NULL, worker, (void *) i+1 );
+	for (i = 0; i < THREADS; i++)
+		CALL(ACT_STOP, pthread_create, &thr[i], NULL, worker, (void *) i+1);
 
-	CALL ( ACT_WARN, nanosleep, &t, NULL );
+	CALL(ACT_WARN, nanosleep, &t, NULL);
 
 	work_in_progress = 0;
 
-	for ( i = 0; i < THREADS; i++ )
-		CALL ( ACT_WARN, pthread_join, thr[i], NULL );
+	for (i = 0; i < THREADS; i++)
+		CALL(ACT_WARN, pthread_join, thr[i], NULL);
 
 	return 0;
 }

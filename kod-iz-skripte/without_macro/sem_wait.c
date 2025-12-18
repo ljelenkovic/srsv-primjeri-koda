@@ -9,49 +9,49 @@
 static sem_t sem;
 static int work_in_progress = 1;
 
-static void *worker ( void *p )
+static void *worker(void *p)
 {
 	long id = (long) p;
-	struct timespec t = { id, 0 };
+	struct timespec t = {id, 0};
 
-	printf ( "Thread %ld starting\n", id );
+	printf("Thread %ld starting\n", id);
 
-	while ( work_in_progress ) {
-		sem_wait ( &sem );
+	while (work_in_progress) {
+		sem_wait(&sem);
 
-		printf ( "Thread %ld inside C.S.\n", id );
+		printf("Thread %ld inside C.S.\n", id);
 
-		nanosleep ( &t, NULL );
+		nanosleep(&t, NULL);
 
 		printf("Thread %ld leaving C.S.\n", id);
 
-		sem_post ( &sem );
+		sem_post(&sem);
 
-		nanosleep ( &t, NULL );
+		nanosleep(&t, NULL);
 	}
 
-	printf ( "Thread %ld exiting\n", id );
+	printf("Thread %ld exiting\n", id);
 
 	return NULL;
 }
 
-int main ()
+int main()
 {
 	long i;
 	pthread_t thr[THREADS];
 	struct timespec t = { 50, 0 };
 
-	sem_init ( &sem, 0, 1 );
+	sem_init(&sem, 0, 1);
 
-	for ( i = 0; i < THREADS; i++ )
-		pthread_create ( &thr[i], NULL, worker, (void *) i+1 );
+	for (i = 0; i < THREADS; i++)
+		pthread_create(&thr[i], NULL, worker, (void *) i+1);
 
-	nanosleep ( &t, NULL );
+	nanosleep(&t, NULL);
 
 	work_in_progress = 0;
 
-	for ( i = 0; i < THREADS; i++ )
-		pthread_join ( thr[i], NULL );
+	for (i = 0; i < THREADS; i++)
+		pthread_join(thr[i], NULL);
 
 	return 0;
 }

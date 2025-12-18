@@ -3,37 +3,36 @@
 #include <stdio.h>
 #include <pthread.h>
 
-static void *new_thread ( void *p )
+static void *new_thread(void *p)
 {
 	long *n = p;
 	long num = *n;
 
-	printf ( "In thread %ld\n", num );
+	printf("In thread %ld\n", num);
 
 	*n = 0; /* exit status = 0 (success) */
 
-	return n; //or pthread_exit (n);
+	return n; //or pthread_exit(n);
 }
 
-int main ()
+int main()
 {
 	pthread_t t1, t2;
 	long n1 = 1, n2 = 5, *status1, *status2;
 
 	/* create threads */
-	if (
-		pthread_create ( &t1, NULL, new_thread, (void *) &n1 ) != 0 ||
-		pthread_create ( &t2, NULL, new_thread, (void *) &n2 ) != 0
-	) {
-		perror ( "ERROR: pthread_create:" );
+	if (	pthread_create(&t1, NULL, new_thread, (void *) &n1) != 0 ||
+		pthread_create(&t2, NULL, new_thread, (void *) &n2) != 0 )
+	{
+		perror("ERROR: pthread_create:");
 		return -1;
 	}
 
 	/* wait until created threads finishes */
-	pthread_join ( t1, (void *) &status1 );
-	pthread_join ( t2, (void *) &status2 );
+	pthread_join(t1, (void *) &status1);
+	pthread_join(t2, (void *) &status2);
 
-	printf ( "Collected statuses: %ld %ld\n", *status1, *status2 );
+	printf("Collected statuses: %ld %ld\n", *status1, *status2);
 
 	return 0;
 }

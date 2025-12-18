@@ -11,81 +11,81 @@
 static pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t s_n = PTHREAD_COND_INITIALIZER;
 static pthread_cond_t n_s = PTHREAD_COND_INITIALIZER;
-static pthread_cond_t *cq[2] = { &s_n, &n_s };
+static pthread_cond_t *cq[2] = {&s_n, &n_s};
 
 struct CarInfo {
 	int id;
 	int dir;
 };
-static char *sdir[] = { "south", "north" };
+static char *sdir[] = {"south", "north"};
 
 static int cars_on_bridge = 0;
 static int dir_on_bridge = -1; /* 0: S->N; 1:N->S; -1:bridge empty */
 
-void *car_thread ( void *p )
+void *car_thread(void *p)
 {
 	struct CarInfo *car = p;
-	struct timespec t = { 5, 0 };
+	struct timespec t = {5, 0};
 
-	pthread_mutex_lock ( &m );
+	pthread_mutex_lock(&m);
 
-	while ( cars_on_bridge > 2 ||
-            ( dir_on_bridge != -1 && dir_on_bridge != car->dir ) )
-		pthread_cond_wait ( cq[car->dir], &m );
+	while (cars_on_bridge > 2 ||
+           (dir_on_bridge != -1 && dir_on_bridge != car->dir))
+		pthread_cond_wait(cq[car->dir], &m);
 
 	cars_on_bridge++;
 	dir_on_bridge = car->dir;
 
 	printf("Car %2d  on bridge, going %s, on bridge %d car(s) (to %s)\n",
-		car->id, sdir[car->dir], cars_on_bridge, sdir[dir_on_bridge] );
+		car->id, sdir[car->dir], cars_on_bridge, sdir[dir_on_bridge]);
 
-	pthread_mutex_unlock ( &m );
+	pthread_mutex_unlock(&m);
 
-	nanosleep ( &t, NULL );
+	nanosleep(&t, NULL);
 
-	pthread_mutex_lock ( &m );
+	pthread_mutex_lock(&m);
 
 	cars_on_bridge--;
 
-	printf ( "Car %2d off bridge, going %s, on bridge %d car(s) (to %s)\n",
-		car->id, sdir[car->dir], cars_on_bridge, sdir[dir_on_bridge] );
+	printf("Car %2d off bridge, going %s, on bridge %d car(s) (to %s)\n",
+		car->id, sdir[car->dir], cars_on_bridge, sdir[dir_on_bridge]);
 
-	if ( cars_on_bridge > 0 ) {
-		pthread_cond_signal ( cq[car->dir] );
+	if (cars_on_bridge > 0) {
+		pthread_cond_signal(cq[car->dir]);
 	}
 	else {
 		dir_on_bridge = -1;
-		pthread_cond_broadcast ( cq[1 - car->dir] );
+		pthread_cond_broadcast(cq[1 - car->dir]);
 	}
 
-	pthread_mutex_unlock ( &m );
+	pthread_mutex_unlock(&m);
 
-	free (car);
+	free(car);
 
 	return NULL;
 }
 
-int main ()
+int main()
 {
 	pthread_t thr_id;
 	pthread_attr_t attr;
 	int i;
 	struct CarInfo *car;
-	struct timespec t = { 2, 0 };
+	struct timespec t = {2, 0};
 
-	pthread_attr_init ( &attr );
-	pthread_attr_setdetachstate ( &attr, PTHREAD_CREATE_DETACHED );
+	pthread_attr_init(&attr);
+	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
-	for ( i = 0; i < THREADS; i++ ) {
-		car = malloc ( sizeof(struct CarInfo) );
+	for (i = 0; i < THREADS; i++) {
+		car = malloc(sizeof(struct CarInfo));
 		car->id = i+1;
 		car->dir = rand() & 1;
 
-		printf( "New car %d arrived from %s\n", i+1, sdir[1 - car->dir] );
+		printf( "New car %d arrived from %s\n", i+1, sdir[1 - car->dir]);
 
-		pthread_create ( &thr_id, &attr, car_thread, (void *) car );
+		pthread_create(&thr_id, &attr, car_thread, (void *) car);
 
-		nanosleep ( &t, NULL );
+		nanosleep(&t, NULL);
 	}
 
 	return 0;

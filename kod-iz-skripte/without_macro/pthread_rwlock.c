@@ -8,47 +8,47 @@
 #define THREADS  6
 static pthread_rwlock_t rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
-static void *worker ( void *p )
+static void *worker(void *p)
 {
 	long id = (long) p;
-	struct timespec t = { 2, 0 };
+	struct timespec t = {2, 0};
 
-	if ( id & 1 ) {
-		printf ( "[%ld] Reader started\n", id );
-		pthread_rwlock_rdlock ( &rwlock );
-		printf ( "[%ld] Read lock acquired\n", id );
+	if (id & 1) {
+		printf("[%ld] Reader started\n", id);
+		pthread_rwlock_rdlock(&rwlock);
+		printf("[%ld] Read lock acquired\n", id);
 	}
 	else {
-		printf ( "[%ld] Writter started\n", id );
-		pthread_rwlock_wrlock ( &rwlock );
-		printf ( "[%ld] Write lock acquired\n", id );
+		printf("[%ld] Writter started\n", id);
+		pthread_rwlock_wrlock(&rwlock);
+		printf("[%ld] Write lock acquired\n", id);
 	}
 
-	nanosleep ( &t, NULL );
+	nanosleep(&t, NULL);
 
-	if ( id & 1 )
-		printf ( "[%ld] Releasing read lock\n", id );
+	if (id & 1)
+		printf("[%ld] Releasing read lock\n", id);
 	else
-		printf ( "[%ld] Releasing write lock\n", id );
-	pthread_rwlock_unlock ( &rwlock );
+		printf("[%ld] Releasing write lock\n", id);
+	pthread_rwlock_unlock(&rwlock);
 
 	return NULL;
 }
 
-int main ()
+int main()
 {
 	long i;
 	pthread_t thr[THREADS];
-	struct timespec t = { 1, 0 };
+	struct timespec t = {1, 0};
 
-	for ( i = 0; i < THREADS; i++ ) {
-		pthread_create ( &thr[i], NULL, worker, (void *) i+1 );
+	for (i = 0; i < THREADS; i++) {
+		pthread_create(&thr[i], NULL, worker, (void *) i+1);
 		t.tv_sec = i;
-		nanosleep ( &t, NULL );
+		nanosleep(&t, NULL);
 	}
 
-	for ( i = 0; i < THREADS; i++ )
-		pthread_join ( thr[i], NULL );
+	for (i = 0; i < THREADS; i++)
+		pthread_join(thr[i], NULL);
 
 	return 0;
 }
