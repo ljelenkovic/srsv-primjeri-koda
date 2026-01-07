@@ -14,32 +14,10 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-/*--- macro that simplifies handling errors with function calls ------------- */
-#define ACT_WARN	0
-#define ACT_STOP	1
-#define CALL(ACT,FUNC,...)                                \
-do {                                                      \
-    if (FUNC(__VA_ARGS__)) {                              \
-        perror(#FUNC);                                    \
-        if (ACT == ACT_STOP)                              \
-            exit(1);                                      \
-    }                                                     \
-} while(0)
-
-/* for example, instead of:
- *    if (pthread_create(&t1, NULL, worker, (void *) p)) {
- *        perror("pthread_create");
- *        exit(-1);
- *    }
- * use:
- *    CALL(ACT_STOP, pthread_create, &t1, NULL, worker, (void *) 1);
- *
- *--------------------------------------------------------------------------- */
-
 static void *task(void *param);
 static void simulate_processing(int secs, char name, int part);
 static void alarm_one_second(union sigval a);
-void count_iterations_within_second();
+void count_iterations_within_second ();
 
 #define THREADS     5
 #define TASK_PARTS  4
@@ -59,29 +37,29 @@ static pthread_mutex_t mon1, mon2;
 
 static struct task_spec params[THREADS] = {
 	{	'E', 1, 0,
-		{3, 9, 0, 3},
-		{NULL, &mon1, NULL, NULL},
-		{NULL, &mon1, NULL, NULL}
+		{ 3, 9, 0, 3 },
+		{ NULL, &mon1, NULL, NULL},
+		{ NULL, &mon1, NULL, NULL}
 	},
 	{	'D', 2, 6,
-		{3, 0, 0, 3},
-		{NULL, NULL, NULL, NULL},
-		{NULL, NULL, NULL, NULL}
+		{ 3, 0, 0, 3 },
+		{ NULL, NULL, NULL, NULL },
+		{ NULL, NULL, NULL, NULL }
 	},
 	{	'C', 3, 9,
-		{3, 3, 3, 3},
-		{NULL, &mon2, &mon1, NULL},
-		{NULL, NULL, &mon2, &mon1}
+		{ 3, 3, 3, 3 },
+		{ NULL, &mon2, &mon1, NULL },
+		{ NULL, NULL, &mon2, &mon1 }
 	},
 	{	'B', 4, 18,
-		{3, 0, 0, 3},
-		{NULL, NULL, NULL, NULL},
-		{NULL, NULL, NULL, NULL}
+		{ 3, 0, 0, 3 },
+		{ NULL, NULL, NULL, NULL },
+		{ NULL, NULL, NULL, NULL }
 	},
 	{	'A', 5, 21,
-		{3, 3, 0, 3},
-		{NULL, &mon2, NULL, NULL},
-		{NULL, &mon2, NULL, NULL}
+		{ 3, 3, 0, 3 },
+		{ NULL, &mon2, NULL, NULL },
+		{ NULL, &mon2, NULL, NULL }
 	}
 };
 
@@ -95,11 +73,11 @@ int main()
 	pthread_t thr[THREADS];
 
 	printf("Real time threads! Use with caution!\n"
-			"Task messages migh not be printed on console at the time"
-			"printf is called (because of real-time priorities)!\n");
+		"Task messages migh not be printed on console at the time"
+		"printf is called (because of real-time priorities)!\n");
 
 	/* count iterations for 1 s period, using timer */
-	count_iterations_within_second ();
+	count_iterations_within_second();
 
 	/*
 	 * to achieve preemption and priority inheritance limit all threads to
@@ -107,7 +85,7 @@ int main()
 	 */
 	CPU_ZERO(&cpu_mask);
 	CPU_SET(0, &cpu_mask);
-	CALL(ACT_STOP, sched_setaffinity, (pid_t) 0, sizeof (cpu_set_t), &cpu_mask);
+	sched_setaffinity((pid_t) 0, sizeof (cpu_set_t), &cpu_mask);
 	/* threads created from this one will inherit above property */
 
 	/* set SCHED_RR for main thread */
@@ -115,33 +93,34 @@ int main()
 	max = sched_get_priority_max(SCHED_RR);
 	main_prio = (min + max) / 2;
 	prio.sched_priority = main_prio;
-	CALL(ACT_STOP, sched_setscheduler, (pid_t) 0, SCHED_RR, &prio);
-
+	if (sched_setscheduler((pid_t) 0, SCHED_RR, &prio)) {
+		perror("sched_setscheduler (started as admin?)");
+	}
 
 	/* prepare properties for mutexes and init them */
-	CALL(ACT_STOP, pthread_mutexattr_init, &mutex_attr);
-	CALL(ACT_STOP, pthread_mutexattr_settype, &mutex_attr, PTHREAD_MUTEX_RECURSIVE);
-	CALL(ACT_STOP, pthread_mutexattr_setprotocol, &mutex_attr, PTHREAD_PRIO_INHERIT);
-	CALL(ACT_STOP, pthread_mutex_init, &mon1, &mutex_attr);
-	CALL(ACT_STOP, pthread_mutex_init, &mon2, &mutex_attr);
+	pthread_mutexattr_init(&mutex_attr);
+	pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
+	pthread_mutexattr_setprotocol(&mutex_attr, PTHREAD_PRIO_INHERIT);
+	pthread_mutex_init(&mon1, &mutex_attr);
+	pthread_mutex_init(&mon2, &mutex_attr);
 
 	/* prepare properties for new tasks (threads) */
-	CALL(ACT_STOP, pthread_attr_init, &thread_attr);
-	CALL(ACT_STOP, pthread_attr_setinheritsched, &thread_attr, PTHREAD_EXPLICIT_SCHED);
-	CALL(ACT_STOP, pthread_attr_setschedpolicy, &thread_attr, SCHED_FIFO);
+	pthread_attr_init(&thread_attr);
+	pthread_attr_setinheritsched(&thread_attr, PTHREAD_EXPLICIT_SCHED);
+	pthread_attr_setschedpolicy(&thread_attr, SCHED_FIFO);
 
 	/* create threads */
 	for (i = 0; i < THREADS; i++)
 	{
 		prio.sched_priority = params[i].prio;
-		CALL(ACT_STOP, pthread_attr_setschedparam, &thread_attr, &prio);
+		pthread_attr_setschedparam(&thread_attr, &prio);
 
-		CALL(ACT_STOP, pthread_create, &thr[i], &thread_attr, task, &params[i]);
+		pthread_create(&thr[i], &thread_attr, task, &params[i]);
 	}
 
 	/* wait for threads to complete */
 	for (i = 0; i < THREADS; i++)
-		CALL(ACT_STOP, pthread_join, thr[i], NULL);
+		pthread_join(thr[i], NULL);
 
 	return 0;
 }
@@ -186,11 +165,11 @@ static void simulate_processing(int secs, char name, int part)
 	int j;
 
 	for (j = 1; j <= secs && !finish; j++) {
-		printf("Thread %c :: part %d (%d/%d)\n", name, part, j, secs);
+		printf ("Thread %c :: part %d (%d/%d)\n", name, part, j, secs);
 
 		/* 1 second run time */
 		for (k = 0; k < counter && !finish; k++)
-			asm volatile("":::"memory");
+			asm volatile ("":::"memory");
 	}
 
 	if (finish) { /* used only when counting iterations within 1 second */
@@ -218,20 +197,20 @@ void count_iterations_within_second ()
 	event.sigev_notify_function = alarm_one_second;
 	event.sigev_notify_attributes = NULL;
 	/* create timer (just create, its not started yet) */
-	CALL(ACT_STOP, timer_create, CLOCK_REALTIME, &event, &timerid);
+	timer_create(CLOCK_REALTIME, &event, &timerid);
 
 	one_second.it_value.tv_sec = 1;
 	one_second.it_value.tv_nsec = 0;
 	one_second.it_interval.tv_sec = 0;
 	one_second.it_interval.tv_nsec = 0;
 	/* start timer, counting 1 seconds */
-	CALL(ACT_STOP, timer_settime, timerid, 0, &one_second, NULL);
+	timer_settime(timerid, 0, &one_second, NULL);
 
 	/* iterate until timer expires = count interations for 1 second */
 	simulate_processing(1, 'G', 0);
 
 	/* timer expired, remove it */
-	CALL(ACT_STOP, timer_delete, timerid);
+	timer_delete(timerid);
 }
 
 /* Example run: (on single processor system !!!)

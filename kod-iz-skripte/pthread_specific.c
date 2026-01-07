@@ -6,29 +6,6 @@
 #include <malloc.h>
 #include <time.h>
 
-/*--- macro that simplifies handling errors with function calls ------------- */
-#define ACT_WARN	0
-#define ACT_STOP	1
-#define CALL(ACT,FUNC,...)                                \
-do {                                                      \
-    if (FUNC(__VA_ARGS__)) {                              \
-        perror(#FUNC);                                    \
-        if (ACT == ACT_STOP)                              \
-            exit(1);                                      \
-    }                                                     \
-} while(0)
-
-/* for example, instead of:
- *    if (pthread_create(&t1, NULL, worker, (void *) p)) {
- *        perror("pthread_create");
- *        exit(-1);
- *    }
- * use:
- *    CALL(ACT_STOP, pthread_create, &t1, NULL, worker, (void *) 1);
- *
- *--------------------------------------------------------------------------- */
-
-
 /* dummy structures */
 typedef long ThrStat;
 typedef long ThrBuffer;
@@ -46,17 +23,17 @@ int main()
 	pthread_t t1, t2;
 
 	/* main thread – initialization of ‘keys’, basis for thread specific data */
-	CALL(ACT_STOP, pthread_key_create,  &thr_stat, free_data);
-	CALL(ACT_STOP, pthread_key_create,  &thr_buffer, free_data);
+	pthread_key_create(&thr_stat, free_data);
+	pthread_key_create(&thr_buffer, free_data);
 	/* initially, value NULL is associated with each key for all threads */
 
 	/* create threads */
-	CALL(ACT_STOP, pthread_create, &t1, NULL, worker, (void *) 1);
-	CALL(ACT_STOP, pthread_create, &t2, NULL, worker, (void *) 2);
+	pthread_create(&t1, NULL, worker, (void *) 1);
+	pthread_create(&t2, NULL, worker, (void *) 2);
 
 	/* wait until created threads finishes */
-	CALL(ACT_WARN, pthread_join, t1, NULL);
-	CALL(ACT_WARN, pthread_join, t2, NULL);
+	pthread_join(t1, NULL);
+	pthread_join(t2, NULL);
 
 	return 0;
 }
@@ -66,7 +43,7 @@ static void *worker(void *x)
 {
 	ThrStat *stat;
 	ThrBuffer *buffer;
-	struct timespec t = { 0, 0 };
+	struct timespec t = {0, 0};
 
 	stat = malloc(sizeof(ThrStat));
 	buffer = malloc(sizeof(ThrBuffer));
@@ -79,11 +56,11 @@ static void *worker(void *x)
 	*buffer = *stat * 10;
 
 	/* associate stat with key thr_stat for current thread only */
-	CALL(ACT_STOP, pthread_setspecific, thr_stat, stat);
-	CALL(ACT_STOP, pthread_setspecific, thr_buffer, buffer);
+	pthread_setspecific(thr_stat, stat);
+	pthread_setspecific(thr_buffer, buffer);
 
 	t.tv_sec = 2 * (long) x;
-	CALL(ACT_WARN, nanosleep, &t, NULL);
+	nanosleep(&t, NULL);
 
 	func();
 

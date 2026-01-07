@@ -53,7 +53,7 @@ void *thread_func(void *param)
 
 	/* period = 500 ms * thread_id */
 	period.tv_sec = thread_id / 2;
-	period.tv_nsec =(thread_id % 2) * 500000000;
+	period.tv_nsec = (thread_id % 2) * 500000000;
 
 	next_act = tx0;
 

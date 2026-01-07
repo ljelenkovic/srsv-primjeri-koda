@@ -21,12 +21,8 @@ int main()
 	long n1 = 1, n2 = 5, *status1, *status2;
 
 	/* create threads */
-	if (	pthread_create(&t1, NULL, new_thread, (void *) &n1) != 0 ||
-		pthread_create(&t2, NULL, new_thread, (void *) &n2) != 0 )
-	{
-		perror("ERROR: pthread_create:");
-		return -1;
-	}
+	pthread_create(&t1, NULL, new_thread, (void *) &n1);
+	pthread_create(&t2, NULL, new_thread, (void *) &n2);
 
 	/* wait until created threads finishes */
 	pthread_join(t1, (void *) &status1);
