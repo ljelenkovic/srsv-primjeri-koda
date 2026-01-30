@@ -1,0 +1,12 @@
+isoimage.iso se može pokrenuti u qemu s komandom:
+
+$ qemu-system-x86_64 -cdrom image.iso -k hr -smp cores=2
+(-smp cores i -k hr djelovi su opcionalni)
+
+Shell je vrlo jednostavan, može samo pokretati programe, kojih ima 3:
+- uname (poziv uname syscalla i ispis svih informacija)
+- clear (čisti ekran)
+- lua (pokreće lua interpretator)
+
+Služi samo kao demonstracija da je jezgra funkcionalna i pravilno postavljena (poziv uname to demonstrira ispisom SMP PREEMPT_RT). 
+

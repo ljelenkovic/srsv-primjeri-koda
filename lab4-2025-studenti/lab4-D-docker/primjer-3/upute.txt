@@ -1,0 +1,43 @@
+Sustav se sastoji od 4 spremnika:
+1. RabbitMQ - message broker za komunikaciju između servisa
+2. Sender - Stvara nasumične narudžbe (20% sadrži nevažeće podatke)
+3. Processor - Izračunava ukupne iznose, primjenjuje popuste
+4. Receiver - Potvrđuje narudžbe i ispisuje račune (ruši se zbog nevažećih podataka)
+
+POKRETANJE RUČNO
+----------------------------------
+
+Pokrenuti RabbitMQ:
+$ docker run -d --name rabbitmq --network host \
+  -p 5672:5672 -p 15672:15672 \
+  rabbitmq:3.13-management
+
+Pričekajte 10-15 sekundi da se RabbitMQ potpuno pokrene.
+Možete pristupiti web sučelju na: http://localhost:15672
+(username: guest, password: guest)
+
+Za pokretanje processor/receiver/sender programa:
+$ docker run --name processor --network host --rm \
+  -v $(pwd):/app -w /app python-rabbitmq-client process.py
+
+$ docker run --name receiver --network host --rm \
+  -v $(pwd):/app -w /app python-rabbitmq-client receive.py
+
+$ docker run --name sender --network host --rm \
+  -v $(pwd):/app -w /app python-rabbitmq-client send.py
+
+Docker compose pokretanje
+---------------------------------
+Pokrenuti sve servise:
+$ docker compose up
+Ili u pozadini:
+$ docker compose up -d
+
+2. Pratiti logove:
+$ docker compose logs -f
+Ili logove određenog servisa:
+$ docker compose logs -f sender
+
+3. Zaustaviti sve servise:
+$ docker compose down
+

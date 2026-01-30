@@ -1,0 +1,72 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: lab4_rabbitmq
+    ports:
+      - "5672:5672"    # AMQP protocol
+      - "15672:15672"  # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: lab4
+      RABBITMQ_DEFAULT_PASS: lab4pass
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - lab4net
+
+  producer:
+    build:
+      context: .
+      dockerfile: producer/Dockerfile
+    container_name: lab4_producer
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: lab4
+      RABBITMQ_PASS: lab4pass
+    restart: unless-stopped
+    networks:
+      - lab4net
+
+  processor:
+    build:
+      context: .
+      dockerfile: processor/Dockerfile
+    container_name: lab4_processor
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: lab4
+      RABBITMQ_PASS: lab4pass
+      CRASH_AFTER_N_EVENTS: "20"
+    restart: on-failure
+    stop_grace_period: 5s
+    networks:
+      - lab4net
+
+  stats:
+    build:
+      context: .
+      dockerfile: stats/Dockerfile
+    container_name: lab4_stats
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: lab4
+      RABBITMQ_PASS: lab4pass
+    restart: unless-stopped
+    networks:
+      - lab4net
+
+networks:
+  lab4net:
+    driver: bridge

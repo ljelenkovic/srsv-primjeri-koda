@@ -1,0 +1,48 @@
+version: '3'
+services:
+  rabbitmq:
+    image: rabbitmq:3-management # slika RabbitMQ spremnika (s interneta)
+    ports:
+      - "15672:15672"
+    networks:
+      - forum_network
+
+  member:
+    image: python-client # slika Python spremnika (sastavlja se lokalno)
+    command: -u member.py # -u omogućuje ispis bez buffera
+    restart: 'no' # nemoj ponovno pokretati članove (nakon simulacije odspajanja)
+    volumes: # mapira trenutni folder u /app folder u spremniku
+      - .:/app
+    working_dir: /app # gdje se izvršavaju komande u spremnki
+    depends_on:
+      - rabbitmq # ovisi, odnosno čeka na RabbitMQ
+    networks:
+      - forum_network # mreža kojoj ima pristup (forum_network za simulaciju)
+
+  censor:
+    image: python-client
+    command: -u censor.py
+    restart: always # uvijek ponovno pokreni moderatora (nakon simulacije greške)
+    volumes:
+      - .:/app
+    working_dir: /app
+    depends_on:
+      - rabbitmq
+    networks:
+      - forum_network
+
+  archiver:
+    image: python-client
+    command: -u archiver.py
+    restart: always
+    volumes:
+      - .:/app
+    working_dir: /app
+    depends_on:
+      - rabbitmq
+    networks:
+      - forum_network
+
+networks:
+  forum_network:
+    driver: bridge # stvaranje privatne mreže na host računalu za svrhe simulacije

@@ -1,0 +1,114 @@
+=========================================================================================
+Vježba 4, Linux jezgra s PREEMPT_RT zastavicom - izvještaj
+=========================================================================================
+
+1. ./include/linux/spinlock_rt.h
+
+RT verzije spinlocka, includane u spinlock.h, direktno se ne može includeati:
+
+spinlock_rt.h:5:
+
+#ifndef __LINUX_INSIDE_SPINLOCK_H
+#error Do not include directly. Use spinlock.h
+#endif
+
+------------------------------------------------
+
+spinlock.h:454:
+
+...
+#else  /* !CONFIG_PREEMPT_RT */
+# include <linux/spinlock_rts.h>
+#endif /* CONFIG_PREEMPT_RT */
+
+-----------------------------------------------
+
+Ovaj header definira wrapper funkcije za spinlock operacije u PREEMPT_RT jezgri. U PREEMPT_RT 
+jezgri, spinlock_t je sleepable (ne prži CPU time) i podržava istiskivanje (preemption) i 
+nasljeđivanje prioriteta. 
+
+
+=========================================================================================
+
+
+2. ./kernel/time/timer.c:254
+
+struct timer_base {
+	raw_spinlock_t		lock;
+	struct timer_list	*running_timer;
+#ifdef CONFIG_PREEMPT_RT
+	spinlock_t		expiry_lock;
+	atomic_t		timer_waiters;
+#endif
+	unsigned long		clk;
+	unsigned long		next_expiry;
+	unsigned int		cpu;
+	bool			next_expiry_recalc;
+	bool			is_idle;
+	bool			timers_pending;
+	DECLARE_BITMAP(pending_map, WHEEL_SIZE);
+	struct hlist_head	vectors[WHEEL_SIZE];
+} ____cacheline_aligned;
+
+-----------------------------------------------
+
+PREEMPT_RT dodaje parametre:
+	spinlock_t		expiry_lock;
+	atomic_t		timer_waiters;
+
+expiry_lock - koristi se pri povratnom pozivu (callback) isteka timera i pri pokušaju 
+    brisanja timera. Sprječava inverziju prioriteta kad je povratni poziv istisnut i 
+    nova dretva pokuša poništiti timer. Također sprječava livelock u istoj situaciji.
+
+timer_waiters - atomarni brojač dretvi koje čekaju na kraj timerovog povarnog poziva.
+
+
+=========================================================================================
+
+
+3. ./kernel/printk/printk.c:2996
+
+#ifdef CONFIG_PREEMPT_RT
+static inline void printk_legacy_allow_spinlock_enter(void) { }
+static inline void printk_legacy_allow_spinlock_exit(void) { }
+#else
+static DEFINE_WAIT_OVERRIDE_MAP(printk_legacy_map, LD_WAIT_SLEEP);
+
+static inline void printk_legacy_allow_spinlock_enter(void)
+{
+	lock_map_acquire_try(&printk_legacy_map);
+}
+
+static inline void printk_legacy_allow_spinlock_exit(void)
+{
+	lock_map_release(&printk_legacy_map);
+}
+#endif
+
+------------------------------------------------------------------
+
+Promjena ovdje je, zbog promjene na spinlock_t, kršenje lockdep pravila (No sleeping
+in atomic contexts) u PREEMPT_RT sustavu nije moguće. U standardnoj jezgri takva pojava
+izaziva kernel bug koji se maskira - poznati false positive. Kako je spinlock_t sleepable
+u PREEMPT_RT jezgri, nema buga.
+
+
+=========================================================================================
+
+
+4. ./include/linux/preempt.h:465
+
+#define preempt_disable_nested()				\
+do {								\
+	if (IS_ENABLED(CONFIG_PREEMPT_RT))			\
+		preempt_disable();				\
+	else							\
+		lockdep_assert_preemption_disabled();		\
+} while (0)
+
+Ovaj marko onemogućuje istiskivanje na svim jezgrama, uključujući PREEMPT_RT jezgre, služi
+za situacije kojima je potrebna lokalna CPU serijalizacija, na ostalim jezgrama ovo je NOP,
+to možemo vidjeti u definiciji makroa lockdep_assert_preemption_disabled koji se nalazi u 
+./include/linux/lockdep.h:635:
+
+# define lockdep_assert_preemption_disabled() do { } while (0)

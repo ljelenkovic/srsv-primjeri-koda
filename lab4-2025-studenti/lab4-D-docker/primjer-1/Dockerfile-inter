@@ -1,0 +1,9 @@
+FROM python
+
+WORKDIR /app
+
+COPY inter.py .
+
+RUN pip install pika
+
+ENTRYPOINT ["python3"]

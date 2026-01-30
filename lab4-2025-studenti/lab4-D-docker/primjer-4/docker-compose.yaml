@@ -1,0 +1,45 @@
+services:
+  rabbitmq:
+    image: rabbitmq:4.1.8-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 5s
+
+  gost:
+    build:
+      dockerfile: dockerfile-gost
+    network_mode: "host"
+    volumes:
+      - .:/lab
+    restart: always
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  konobar:
+    build:
+      dockerfile: dockerfile-konobar
+    network_mode: "host"
+    volumes:
+      - .:/lab
+    restart: always
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  kuhar:
+    build:
+      dockerfile: dockerfile-kuhar
+    network_mode: "host"
+    volumes:
+      - .:/lab
+    restart: always
+    depends_on:
+      rabbitmq:
+        condition: service_healthy

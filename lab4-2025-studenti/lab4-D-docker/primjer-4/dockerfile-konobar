@@ -1,0 +1,4 @@
+FROM python
+RUN python3 -m pip install pika --upgrade
+
+CMD ["python3", "-u", "lab/konobar.py"]

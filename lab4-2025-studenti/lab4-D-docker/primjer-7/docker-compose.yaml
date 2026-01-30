@@ -1,0 +1,21 @@
+version: "3.9"
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  sender:
+    build: ./sender
+    depends_on:
+      - rabbitmq
+
+  receiver:
+    build: ./receiver
+    depends_on:
+      - rabbitmq
+    restart: always
+    deploy:
+      replicas: 1

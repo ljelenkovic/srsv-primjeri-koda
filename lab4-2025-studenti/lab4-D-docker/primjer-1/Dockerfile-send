@@ -1,0 +1,9 @@
+FROM python
+
+WORKDIR /app
+
+COPY send.py .
+
+RUN pip install pika
+
+ENTRYPOINT ["python3"]

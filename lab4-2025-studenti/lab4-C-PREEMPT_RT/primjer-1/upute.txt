@@ -1,0 +1,51 @@
+## NAPOMENA: .c datoteke su u src folderu
+
+
+za shell.c
+$ gcc -fno-stack-protector -c shell.c
+
+za shell.s
+$ as shell.s
+
+linkanje
+$ ld -o init shell.o a.out --entry main -z noexecstack
+
+
+-------------------------------------------------------------------------------------------------------
+
+
+// uname i clear su napravljeni kao odvojeni programi za demonstraciju da shell može pokrenuti programe
+
+c fileovi
+$ gcc -fno-stack-protector -c uname.c
+$ gcc -fno-stack-protector -c clear.c
+
+za shell.s
+$ as uname.s -o u.out
+$ as clear.s -o c.out
+
+linkanje
+$ ld -o uname uname.o u.out --entry main -z noexecstack
+$ ld -o clear clear.o c.out --entry main -z noexecstack
+
+dodati u files
+"uname" >> files
+"clear" >> files
+
+
+-------------------------------------------------------------------------------------------------------
+
+
+u cpio (files je <nešto> >> files)
+$ cat files | cpio -H newc -o > init.cpio
+
+u linux folderu:
+za build
+& make -j 6
+
+za iso:
+make isoimage FDARGS="initrd=/init.cpio loglevel=4" FDINITRD=../init.cpio
+
+pokretanje u qemu:
+qemu-system-x86_64 -cdrom image.iso -k hr -smp cores=2
+(smp dio je opcionalan)

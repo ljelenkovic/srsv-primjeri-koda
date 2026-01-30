@@ -1,0 +1,28 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    network_mode: "host"
+    restart: always
+  kupac:
+    build: ./kupac
+    network_mode: "host"
+    environment:
+      - PYTHONUNBUFFERED=1
+    deploy:
+        replicas: 2
+    restart: always
+
+  zaposlenik:
+    build: ./zaposlenik
+    network_mode: "host"
+    environment:
+      - PYTHONUNBUFFERED=1
+
+    restart: always
+
+  blagajna:
+    build: ./blagajna
+    network_mode: "host"
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: always

@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  sender:
+    build: .
+    container_name: sender
+    command: send.py
+    volumes:
+      - ./send.py:/app/send.py
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: always
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  processor:
+    build: .
+    container_name: processor
+    command: process.py
+    volumes:
+      - ./process.py:/app/process.py
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: always
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  receiver:
+    build: .
+    container_name: receiver
+    command: receive.py
+    volumes:
+      - ./receive.py:/app/receive.py
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: always
+    environment:
+      - PYTHONUNBUFFERED=1
+
+networks:
+  app-network:
+    driver: bridge
